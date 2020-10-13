@@ -31,6 +31,10 @@ export function init() {
   initProgressBar();
 }
 
+document.addEventListener('dragover', e => {
+  e.preventDefault();
+})
+
 // Trackers for the current state of the explorer (training or testing)
 const datasetNames = ["training", "testing"];
 
@@ -47,6 +51,13 @@ export function trainStatus(status) {
 
 // Methods to set in index.js that will allow it to pass data to the ui.
 export let addExampleHandler;
+
+/**
+ * Set the handler function when an image is added.
+ *
+ * @param {function(string, string, ?HTMLImageElement=)} handler the handler to
+ * be called when an image is added.
+ */
 export function setAddExampleHandler(handler) {
   addExampleHandler = handler;
 }
@@ -129,6 +140,38 @@ export function addLabel(newLabelName) {
     labelImagesInner.appendChild(labelImagesCanvas);
     labelImagesOuter.appendChild(labelImagesInner);
 
+    labelBox.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      labelBox.classList.add('droppable');
+    });
+    labelBox.addEventListener('dragexit', e => {
+      labelBox.classList.remove('droppable');
+    });
+    labelBox.addEventListener('dragleave', e => {
+      labelBox.classList.remove('droppable');
+    });
+    labelBox.addEventListener('drop', e => {
+      for (let i = 0; i < e.dataTransfer.files.length; i++) {
+        let file = e.dataTransfer.files[i];
+        const name = file.name;
+        let reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          let image = new Image(224, 224);
+          image.onload = () => {
+            addExample(labelCountSpan, newLabelId, datasetName, image);
+          };
+          image.onerror = () => {
+            console.log('Unable to load ' + name);
+          };
+          image.src = /** @type string */ reader.result;
+        };
+      }
+      labelBox.classList.remove('droppable');
+      e.preventDefault();
+    });
+
     // Setting up state changes for clicking on labels to add images for
     if (datasetName === "training") {
       labelBox.addEventListener("click", function() {
@@ -188,9 +231,9 @@ export function addLabel(newLabelName) {
   }
 }
 
-function addExample(labelCountSpan, labelId, datasetName) {
+function addExample(labelCountSpan, labelId, datasetName, image) {
   labelCountSpan.textContent = parseInt(labelCountSpan.textContent) + 1;
-  addExampleHandler(labelId, datasetName);
+  addExampleHandler(labelId, datasetName, image);
 }
 
 addLabelsButton.addEventListener('click', () => {
